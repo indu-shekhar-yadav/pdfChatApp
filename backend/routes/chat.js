@@ -84,4 +84,23 @@ router.delete('/delete/:chatId', authMiddleware, async (req, res) => {
   }
 });
 
+router.delete('/:chatId/messages', auth, async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) {
+      return res.status(404).json({ msg: 'Chat not found' });
+    }
+    if (chat.user.toString() !== req.user.id) {
+      return res.status(403).json({ msg: 'Unauthorized' });
+    }
+
+    chat.messages = []; // Clear the messages array
+    await chat.save();
+    res.status(200).json({ msg: 'Messages cleared successfully' });
+  } catch (err) {
+    console.error('Error clearing messages:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
 module.exports = router;
