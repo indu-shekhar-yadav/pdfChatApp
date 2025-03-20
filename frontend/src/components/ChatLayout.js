@@ -1,17 +1,17 @@
+// frontend/src/components/ChatLayout.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api'; // Use the configured Axios instance
-import PDFUploader from './PDFUploader'; // Import the updated PDFUploader component
+import api from '../api';
+import PDFUploader from './PDFUploader';
 
 const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
-  const [selectedChat, setSelectedChat] = useState(null); // Currently selected chat
-  const [query, setQuery] = useState(''); // User's query to the AI
-  const [messages, setMessages] = useState([]); // Chat messages for the selected chat
-  const [error, setError] = useState(''); // Error messages
-  const [loading, setLoading] = useState(false); // Loading state for API calls
-  const navigate = useNavigate();
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [query, setQuery] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate(); // Now we'll use this
 
-  // Fetch messages for the selected chat when it changes
   useEffect(() => {
     if (selectedChat) {
       const fetchMessages = async () => {
@@ -39,11 +39,10 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
       };
       fetchMessages();
     } else {
-      setMessages([]); // Clear messages if no chat is selected
+      setMessages([]);
     }
   }, [selectedChat]);
 
-  // Handle creating a new chat
   const handleNewChat = async () => {
     setError('');
     setLoading(true);
@@ -51,8 +50,8 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
       const res = await api.post('/api/chat/new', {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      fetchChats(); // Refresh the chat list
-      setSelectedChat(res.data); // Select the new chat
+      fetchChats();
+      setSelectedChat(res.data);
     } catch (err) {
       console.error('Error creating chat:', err);
       setError('Failed to create a new chat. Please try again.');
@@ -61,7 +60,6 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
     }
   };
 
-  // Handle sending a query to the AI
   const handleSendQuery = async (e) => {
     e.preventDefault();
     if (!selectedChat) {
@@ -88,7 +86,7 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
         { sender: 'user', content: query },
         { sender: 'ai', content: res.data.response },
       ]);
-      setQuery(''); // Clear the input
+      setQuery('');
     } catch (err) {
       console.error('Error sending query:', err);
       if (err.code === 'ECONNABORTED') {
@@ -105,7 +103,6 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
     }
   };
 
-  // Handle deleting a chat
   const handleDeleteChat = async (chatId) => {
     setError('');
     setLoading(true);
@@ -113,9 +110,9 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
       await api.delete(`/api/chat/${chatId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      fetchChats(); // Refresh the chat list
+      fetchChats();
       if (selectedChat && selectedChat._id === chatId) {
-        setSelectedChat(null); // Deselect the deleted chat
+        setSelectedChat(null);
       }
     } catch (err) {
       console.error('Error deleting chat:', err);
@@ -125,7 +122,6 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
     }
   };
 
-  // Handle clearing messages in the current chat
   const handleClearMessages = async () => {
     if (!selectedChat) {
       setError('Please select a chat first.');
@@ -138,13 +134,19 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
       await api.delete(`/api/chat/${selectedChat._id}/messages`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setMessages([]); // Clear the messages in the UI
+      setMessages([]);
     } catch (err) {
       console.error('Error clearing messages:', err);
       setError('Failed to clear messages. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Update handleLogout to use navigate
+  const onLogout = () => {
+    handleLogout(); // Call the parent handleLogout to clear token and chats
+    navigate('/login'); // Redirect to login page
   };
 
   return (
@@ -191,7 +193,7 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
           )}
         </ul>
         <button
-          onClick={handleLogout}
+          onClick={onLogout} // Updated to use the new onLogout function
           className="w-full bg-red-500 text-white p-2 rounded mt-4 hover:bg-red-600"
         >
           Logout
@@ -205,13 +207,10 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
           <p className="text-gray-500">Select a chat or create a new one to start.</p>
         ) : (
           <>
-            {/* PDF Upload Section */}
             <PDFUploader
               token={localStorage.getItem('token')}
               chatId={selectedChat._id}
             />
-
-            {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 bg-white rounded-lg shadow mb-4">
               {loading ? (
                 <p className="text-gray-500">Loading messages...</p>
@@ -234,8 +233,6 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
                 ))
               )}
             </div>
-
-            {/* Chat Controls */}
             <div className="flex items-center space-x-2 mb-4">
               <button
                 onClick={handleClearMessages}
@@ -245,8 +242,6 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
                 {loading ? 'Clearing...' : 'Clear Messages'}
               </button>
             </div>
-
-            {/* Query Input */}
             <form onSubmit={handleSendQuery} className="flex items-center">
               <input
                 type="text"
