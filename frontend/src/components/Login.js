@@ -1,6 +1,5 @@
-// frontend/src/components/Login.js
+import api from '../api'; // Assuming you added the Axios instance
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Login = ({ setToken }) => {
@@ -11,8 +10,9 @@ const Login = ({ setToken }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(''); // Clear previous errors
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+      const res = await api.post('/api/auth/login', { email, password });
       const token = res.data.token;
       if (token) {
         localStorage.setItem('token', token);
@@ -22,15 +22,22 @@ const Login = ({ setToken }) => {
         setError('No token received from server');
       }
     } catch (err) {
-      console.error('Login error:', err.response?.data || err.message);
-      setError(err.response?.data?.msg || 'An error occurred');
+      console.error('Login error:', err);
+      if (err.code === 'ECONNABORTED') {
+        setError('The server took too long to respond. Please try again.');
+      } else if (err.response) {
+        setError(err.response.data.msg || 'An error occurred during login.');
+      } else if (err.request) {
+        setError('Unable to reach the server. Please check your internet connection.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        {/* Headline Title */}
         <h1 className="text-4xl font-extrabold text-center mb-6 bg-gradient-to-r from-blue-500 to-purple-600 text-transparent bg-clip-text animate-pulse">
           Welcome Back to Chat with PDF
         </h1>
