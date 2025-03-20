@@ -1,13 +1,13 @@
+// frontend/src/components/PDFUploader.js
 import React, { useState, useEffect } from 'react';
-import api from '../api'; // Use the configured Axios instance
+import api from '../api';
 
 const PDFUploader = ({ token, chatId }) => {
-  const [files, setFiles] = useState([]); // Selected files to upload
-  const [pdfList, setPdfList] = useState([]); // List of uploaded PDFs
-  const [uploadStatus, setUploadStatus] = useState(''); // Status message
-  const [loading, setLoading] = useState(false); // Loading state for uploads
+  const [files, setFiles] = useState([]);
+  const [pdfList, setPdfList] = useState([]);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Fetch the list of uploaded PDFs
   useEffect(() => {
     const fetchPDFs = async () => {
       if (!token) return;
@@ -16,7 +16,7 @@ const PDFUploader = ({ token, chatId }) => {
       try {
         const res = await api.get('/api/pdf/list', {
           headers: { Authorization: `Bearer ${token}` },
-          params: chatId ? { chatId } : {}, // Optionally filter by chatId
+          params: chatId ? { chatId } : {},
         });
         setPdfList(res.data);
       } catch (err) {
@@ -29,18 +29,16 @@ const PDFUploader = ({ token, chatId }) => {
     fetchPDFs();
   }, [token, chatId]);
 
-  // Handle PDF upload
   const handleUpload = async () => {
     if (files.length === 0) {
       setUploadStatus('Please select at least one PDF file.');
       return;
     }
 
-    // Check file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
     for (let file of files) {
       if (file.size > maxSize) {
-        setUploadStatus(`File ${file.name} is too large. Max size is 5MB.`);
+        setUploadStatus(`File ${file.name} is too large. Max size is 10MB.`);
         return;
       }
     }
@@ -49,12 +47,11 @@ const PDFUploader = ({ token, chatId }) => {
     setUploadStatus('Uploading...');
 
     try {
-      // Upload each file using FormData
       for (let file of files) {
         const formData = new FormData();
         formData.append('pdf', file);
         if (chatId) {
-          formData.append('chatId', chatId); // Associate with chatId if provided
+          formData.append('chatId', chatId);
         }
 
         await api.post('/api/pdf/upload', formData, {
@@ -65,7 +62,6 @@ const PDFUploader = ({ token, chatId }) => {
         });
       }
 
-      // Refresh the PDF list after upload
       const res = await api.get('/api/pdf/list', {
         headers: { Authorization: `Bearer ${token}` },
         params: chatId ? { chatId } : {},
@@ -90,36 +86,48 @@ const PDFUploader = ({ token, chatId }) => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg w-full">
-      <h2 className="text-xl font-semibold text-primary mb-4">Upload PDFs</h2>
-      <input
-        type="file"
-        multiple
-        accept=".pdf"
-        onChange={(e) => setFiles(Array.from(e.target.files))}
-        className="mb-4"
-        disabled={loading}
-      />
-      <button
-        onClick={handleUpload}
-        className="bg-secondary text-white px-4 py-2 rounded hover:bg-emerald-700 disabled:bg-gray-400"
-        disabled={loading}
-      >
-        {loading ? 'Uploading...' : 'Upload'}
-      </button>
+    <div className="bg-white p-4 rounded-lg shadow-md w-full">
+      <h2 className="text-lg font-semibold text-gray-800 mb-3">Upload PDFs</h2>
+      <div className="flex items-center space-x-3 mb-3">
+        <input
+          type="file"
+          multiple
+          accept=".pdf"
+          onChange={(e) => setFiles(Array.from(e.target.files))}
+          className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm"
+          disabled={loading}
+        />
+        <button
+          onClick={handleUpload}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400"
+          disabled={loading}
+        >
+          {loading ? 'Uploading...' : 'Upload'}
+        </button>
+      </div>
+      <p className="text-sm text-gray-600 mb-3">
+        Upload any number of PDFs (Size limit: 10MB each).
+      </p>
       {uploadStatus && (
-        <p className={`mt-2 ${uploadStatus.includes('successfully') ? 'text-green-500' : 'text-red-500'}`}>
+        <p
+          className={`mb-3 text-sm ${
+            uploadStatus.includes('successfully') ? 'text-green-500' : 'text-red-500'
+          }`}
+        >
           {uploadStatus}
         </p>
       )}
-      <div className="mt-4 max-h-40 overflow-y-auto">
+      <div className="max-h-40 overflow-y-auto">
         {loading ? (
-          <p>Loading PDFs...</p>
+          <p className="text-gray-500 text-sm">Loading PDFs...</p>
         ) : pdfList.length === 0 ? (
-          <p>No PDFs uploaded yet.</p>
+          <p className="text-gray-500 text-sm">No PDFs uploaded yet.</p>
         ) : (
           pdfList.map((pdf) => (
-            <div key={pdf._id} className="p-2 bg-gray-100 rounded mb-2">
+            <div
+              key={pdf._id}
+              className="p-2 bg-gray-50 rounded mb-2 text-sm text-gray-700"
+            >
               {pdf.filename} - {new Date(pdf.uploadedAt).toLocaleDateString()}
             </div>
           ))

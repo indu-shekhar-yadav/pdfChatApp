@@ -1,31 +1,47 @@
 // backend/routes/pdf.js
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
 const PDF = require('../models/PDF');
-const { authMiddleware } = require('./auth');
 
-router.post('/upload', authMiddleware, async (req, res) => {
-  const { filename, data, chatId } = req.body;
+// Upload a PDF
+router.post('/upload', auth, async (req, res) => {
   try {
+    const { chatId } = req.body;
+    const pdfFile = req.files?.pdf;
+
+    if (!pdfFile) {
+      return res.status(400).json({ msg: 'No PDF file uploaded' });
+    }
+
     const pdf = new PDF({
-      userId: req.user.id,
-      chatId, // Associate with the specific chat
-      filename,
-      data: Buffer.from(data, 'base64'),
+      user: req.user.id,
+      chat: chatId || null,
+      filename: pdfFile.name,
+      data: pdfFile.data,
     });
     await pdf.save();
-    res.json(pdf);
+
+    res.json({ msg: 'PDF uploaded successfully', pdf });
   } catch (err) {
+    console.error(err.message);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-router.get('/list', authMiddleware, async (req, res) => {
-  const { chatId } = req.query; // Get PDFs for a specific chat
+// List uploaded PDFs
+router.get('/list', auth, async (req, res) => {
   try {
-    const pdfs = await PDF.find({ userId: req.user.id, chatId });
+    const { chatId } = req.query;
+    const query = { user: req.user.id };
+    if (chatId) {
+      query.chat = chatId;
+    }
+
+    const pdfs = await PDF.find(query).sort({ uploadedAt: -1 });
     res.json(pdfs);
   } catch (err) {
+    console.error(err.message);
     res.status(500).json({ msg: 'Server error' });
   }
 });

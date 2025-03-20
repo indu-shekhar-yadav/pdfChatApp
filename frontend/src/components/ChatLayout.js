@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import PDFUploader from './PDFUploader';
+import { FaSpinner } from 'react-icons/fa';
 
 const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
   const [selectedChat, setSelectedChat] = useState(null);
@@ -10,7 +11,7 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // Now we'll use this
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (selectedChat) {
@@ -75,17 +76,15 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
     setError('');
     try {
       const res = await api.post(
-        `/api/chat/${selectedChat._id}/query`,
-        { query },
+        '/api/chat/message',
+        { chatId: selectedChat._id, message: query },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         }
       );
-      setMessages([
-        ...messages,
-        { sender: 'user', content: query },
-        { sender: 'ai', content: res.data.response },
-      ]);
+      setMessages(res.data.messages);
+      setSelectedChat(res.data);
+      fetchChats();
       setQuery('');
     } catch (err) {
       console.error('Error sending query:', err);
@@ -143,120 +142,185 @@ const ChatLayout = ({ chats, fetchChats, handleLogout }) => {
     }
   };
 
-  // Update handleLogout to use navigate
   const onLogout = () => {
-    handleLogout(); // Call the parent handleLogout to clear token and chats
-    navigate('/login'); // Redirect to login page
+    handleLogout();
+    navigate('/login');
+  };
+
+  const renderMessageContent = (content, sender) => {
+    const lines = content.split('\n').filter((line) => line.trim() !== '');
+    let currentSection = null;
+    const sections = [];
+    let currentItems = [];
+
+    lines.forEach((line) => {
+      if (line.startsWith('Section: ')) {
+        if (currentSection) {
+          sections.push({ section: currentSection, items: currentItems });
+        }
+        currentSection = line.replace('Section: ', '');
+        currentItems = [];
+      } else if (line.startsWith('-')) {
+        currentItems.push(line.replace('-', '').trim());
+      } else {
+        currentItems.push(line.trim());
+      }
+    });
+
+    if (currentSection) {
+      sections.push({ section: currentSection, items: currentItems });
+    } else {
+      sections.push({ section: null, items: lines });
+    }
+
+    return (
+      <div className="space-y-2">
+        {sections.map((section, index) => (
+          <div key={index} className="space-y-1">
+            {section.section && (
+              <div className="font-semibold text-gray-800 text-sm uppercase tracking-wide">
+                {section.section}
+              </div>
+            )}
+            {section.items.map((item, i) => (
+              <div key={i} className="text-gray-700 text-sm leading-relaxed">
+                {item.startsWith('-') ? `• ${item.replace('-', '').trim()}` : item}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="md:w-1/4 w-full bg-gray-200 p-4 flex flex-col">
-        <h2 className="text-xl font-semibold mb-4">Chats</h2>
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="fixed top-0 left-0 w-1/4 h-screen bg-gray-100 p-4 flex flex-col shadow-md">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Chats</h2>
         <button
           onClick={handleNewChat}
-          className="w-full bg-blue-500 text-white p-2 rounded mb-4 hover:bg-blue-600 disabled:bg-gray-400"
+          className="w-full bg-indigo-600 text-white p-2 rounded-lg mb-4 hover:bg-indigo-700 transition-colors disabled:bg-gray-400"
           disabled={loading}
         >
           {loading ? 'Creating...' : 'New Chat'}
         </button>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        <ul className="flex-1 overflow-y-auto">
-          {chats.length === 0 ? (
-            <p className="text-gray-500">No chats yet. Create a new one!</p>
-          ) : (
-            chats.map((chat) => (
-              <li
-                key={chat._id}
-                className={`p-2 border-b cursor-pointer flex justify-between items-center ${
-                  selectedChat && selectedChat._id === chat._id ? 'bg-gray-300' : ''
-                } hover:bg-gray-300 transition-colors`}
-              >
-                <div onClick={() => setSelectedChat(chat)} className="flex-1">
-                  <span className="font-medium">Chat {chat._id.slice(-5)}</span>
-                  <p className="text-sm text-gray-600">
-                    {chat.createdAt
-                      ? new Date(chat.createdAt).toLocaleDateString()
-                      : 'No date'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDeleteChat(chat._id)}
-                  className="text-red-500 hover:text-red-700"
-                  disabled={loading}
+        {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
+        <div className="flex-1 overflow-y-auto">
+          <ul>
+            {chats.length === 0 ? (
+              <p className="text-gray-500 text-sm">No chats yet. Create a new one!</p>
+            ) : (
+              chats.map((chat) => (
+                <li
+                  key={chat._id}
+                  className={`p-3 border-b flex justify-between items-center cursor-pointer transition-colors ${
+                    selectedChat && selectedChat._id === chat._id
+                      ? 'bg-indigo-50'
+                      : 'hover:bg-gray-200'
+                  }`}
                 >
-                  Delete
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-        <button
-          onClick={onLogout} // Updated to use the new onLogout function
-          className="w-full bg-red-500 text-white p-2 rounded mt-4 hover:bg-red-600"
-        >
-          Logout
-        </button>
+                  <div onClick={() => setSelectedChat(chat)} className="flex-1">
+                    <span className="font-medium text-gray-800">
+                      {chat.title || 'Untitled Chat'}
+                    </span>
+                    <p className="text-xs text-gray-500">
+                      {chat.createdAt
+                        ? new Date(chat.createdAt).toLocaleDateString()
+                        : 'No date'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteChat(chat._id)}
+                    className="text-red-500 hover:text-red-700 text-sm"
+                    disabled={loading}
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+        <div className="mt-4">
+          <button
+            onClick={onLogout}
+            className="w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
-      {/* Main Chat Area */}
-      <div className="md:w-3/4 w-full p-4 flex flex-col">
-        <h1 className="text-2xl font-semibold mb-4">Chat with PDF</h1>
+      <div className="ml-0 md:ml-[25%] w-full md:w-3/4 p-6 flex flex-col bg-gray-100">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Chat with PDF</h1>
         {!selectedChat ? (
-          <p className="text-gray-500">Select a chat or create a new one to start.</p>
+          <p className="text-gray-500 text-sm">
+            Select a chat or create a new one to start.
+          </p>
         ) : (
           <>
             <PDFUploader
               token={localStorage.getItem('token')}
               chatId={selectedChat._id}
             />
-            <div className="flex-1 overflow-y-auto p-4 bg-white rounded-lg shadow mb-4">
+            <div className="flex-1 overflow-y-auto p-4 bg-white rounded-lg shadow-md mb-6 mt-6">
               {loading ? (
-                <p className="text-gray-500">Loading messages...</p>
+                <p className="text-gray-500 text-sm">Loading messages...</p>
               ) : messages.length === 0 ? (
-                <p className="text-gray-500">No messages yet. Upload a PDF and start chatting!</p>
+                <p className="text-gray-500 text-sm">
+                  No PDFs uploaded yet. Upload a PDF and start chatting!
+                </p>
               ) : (
                 messages.map((msg, index) => (
                   <div
                     key={index}
-                    className={`mb-2 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}
+                    className={`mb-4 flex ${
+                      msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                    } animate-fadeIn`}
                   >
-                    <span
-                      className={`inline-block p-2 rounded-lg ${
-                        msg.sender === 'user' ? 'bg-blue-100' : 'bg-gray-100'
-                      } max-w-[80%] md:max-w-[60%]`}
+                    <div
+                      className={`max-w-[80%] md:max-w-[60%] p-4 rounded-lg shadow-sm transition-all ${
+                        msg.sender === 'user'
+                          ? 'bg-indigo-100 text-indigo-900'
+                          : 'bg-gray-50 text-gray-800'
+                      }`}
                     >
-                      {msg.content}
-                    </span>
+                      {msg.sender === 'ai'
+                        ? renderMessageContent(msg.content, msg.sender)
+                        : msg.content}
+                    </div>
                   </div>
                 ))
               )}
             </div>
-            <div className="flex items-center space-x-2 mb-4">
+            <div className="flex items-center space-x-2 mb-6">
               <button
                 onClick={handleClearMessages}
-                className="bg-yellow-500 text-white p-2 rounded hover:bg-yellow-600 disabled:bg-gray-400"
+                className="bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition-colors disabled:bg-gray-400"
                 disabled={loading || messages.length === 0}
               >
                 {loading ? 'Clearing...' : 'Clear Messages'}
               </button>
             </div>
-            <form onSubmit={handleSendQuery} className="flex items-center">
+            <form onSubmit={handleSendQuery} className="flex items-center space-x-3">
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Ask a question about the PDF..."
-                className="flex-1 p-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm"
                 disabled={loading}
               />
               <button
                 type="submit"
-                className="bg-blue-500 text-white p-2 rounded-r hover:bg-blue-600 disabled:bg-gray-400"
+                className="bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 flex items-center justify-center"
                 disabled={loading}
               >
-                {loading ? 'Sending...' : 'Send'}
+                {loading ? (
+                  <FaSpinner className="animate-spin text-lg" />
+                ) : (
+                  'Send'
+                )}
               </button>
             </form>
           </>

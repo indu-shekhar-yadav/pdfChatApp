@@ -1,7 +1,16 @@
+// backend/routes/chat.js
 const express = require('express');
 const router = express.Router();
 const Chat = require('../models/Chat');
-const auth = require('../middleware/auth'); // Import the auth middleware
+const PDF = require('../models/PDF');
+const auth = require('../middleware/auth');
+const {
+  get_pdf_text,
+  get_text_chunks,
+  get_vector_store,
+  get_conversational_chain,
+  generate_chat_title,
+} = require('../utils');
 
 // Create a new chat
 router.post('/new', auth, async (req, res) => {
@@ -60,18 +69,45 @@ router.post('/message', auth, async (req, res) => {
 
     // Add user message
     chat.messages.push({
-      role: 'user',
+      sender: 'user',
       content: message,
       timestamp: new Date(),
     });
 
-    // Simulate AI response (replace with actual AI integration)
-    const aiResponse = `AI response to: ${message}`; // Placeholder
+    // Fetch associated PDF (if any)
+    const pdf = await PDF.findOne({ chat: chatId, user: req.user.id });
+    let aiResponse = 'No PDF found for this chat. Please upload a PDF to get AI responses.';
+
+    if (pdf) {
+      // Extract text from the PDF
+      const pdfText = await get_pdf_text([pdf.data]);
+      if (pdfText) {
+        // Process the text into chunks
+        const textChunks = get_text_chunks(pdfText);
+        const vectorStore = get_vector_store(textChunks);
+
+        // Generate AI response using Gemini
+        const conversationalChain = get_conversational_chain();
+        const result = await conversationalChain({
+          input_documents: vectorStore,
+          question: message,
+        });
+        aiResponse = result.output_text;
+      } else {
+        aiResponse = 'Error extracting text from the PDF.';
+      }
+    }
+
+    // Add AI response
     chat.messages.push({
-      role: 'assistant',
+      sender: 'ai',
       content: aiResponse,
       timestamp: new Date(),
     });
+
+    // Generate a new chat title based on the user's message
+    const newTitle = await generate_chat_title(message);
+    chat.title = newTitle; // Add a title field to the chat
 
     await chat.save();
     res.status(200).json(chat);
@@ -92,7 +128,7 @@ router.delete('/:chatId/messages', auth, async (req, res) => {
       return res.status(403).json({ msg: 'Unauthorized' });
     }
 
-    chat.messages = []; // Clear the messages array
+    chat.messages = [];
     await chat.save();
     res.status(200).json({ msg: 'Messages cleared successfully' });
   } catch (err) {

@@ -41,15 +41,19 @@ const get_conversational_chain = () => {
   return async ({ input_documents, question }) => {
     try {
       const context = input_documents.join('\n');
-      const prompt = `You are a professional AI assistant. Your task is to extract key information from a given context derived from PDF documents and provide a summary in bullet points. Ensure the summary is clear, concise, and devoid of any formatting symbols such as asterisks or hashtags. Maintain a professional tone while infusing a light, engaging style to make the interaction enjoyable.
+      const prompt = `You are a friendly and professional AI assistant with a knack for making conversations engaging and fun. Your task is to answer the user's question based on the given context from PDF documents. Respond in a conversational tone, focusing on the user's query, and present the information in a structured format with section headers and bullet points for clarity. Keep the tone professional yet light-hearted, adding a touch of personality to make the interaction enjoyable. Avoid using formatting symbols like asterisks or hashtags.
+
                       Context: ${context}  
                       Question: ${question}  
                       Instructions:  
-                      - Focus on the main ideas and essential details from the context.  
-                      - Use simple and direct language.  
-                      - Organize the information logically and coherently in bullet points.  
-                      - Avoid jargon unless necessary, and explain any technical terms briefly.  
-                      - Ensure the summary caters to the user's query effectively and provides value.`;
+                      - Directly address the user's question with a relevant and concise answer.  
+                      - Structure the response with section headers in the format "Section: [Section Name]" (e.g., "Section: Education", "Section: Experience") followed by bullet points for that section.  
+                      - Use bullet points (starting with "-") to list key details under each section.  
+                      - Maintain a professional tone but add a friendly, engaging vibe (e.g., "Hey there!", "Pretty cool, right?").  
+                      - If the question is specific, focus on that topic (e.g., if asked about certificates, highlight only the certificates).  
+                      - If the question is broad, provide a brief summary with relevant sections (e.g., Education, Experience, Skills).  
+                      - End with a friendly closing statement (e.g., "Let me know if you’d like more details!").  
+                      - If the answer isn't clear from the context, let the user know in a friendly way and suggest next steps.`;
 
       const result = await model.generateContent(prompt);
       let response = result.response.text();
@@ -60,7 +64,7 @@ const get_conversational_chain = () => {
       return { output_text: response };
     } catch (err) {
       console.error('Error with Gemini AI:', err.message);
-      return { output_text: 'Error processing the request with Gemini AI.' };
+      return { output_text: 'Oops, something went wrong while processing your request. Let’s try again!' };
     }
   };
 };
@@ -71,11 +75,11 @@ const generate_chat_title = async (question) => {
     const prompt = `Generate a concise and descriptive chat title (max 20 characters) based on the following question: "${question}"`;
     const result = await model.generateContent(prompt);
     let title = result.response.text().trim();
-    if (title.length > 30) title = title.substring(0, 27) + '...';
+    if (title.length > 20) title = title.substring(0, 17) + '...';
     return title;
   } catch (err) {
     console.error('Error generating chat title:', err.message);
-    return question.length > 30 ? question.substring(0, 27) + '...' : question;
+    return question.length > 20 ? question.substring(0, 17) + '...' : question;
   }
 };
 
