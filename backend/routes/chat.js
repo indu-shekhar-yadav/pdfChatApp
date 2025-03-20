@@ -1,89 +1,87 @@
-// backend/routes/chat.js
 const express = require('express');
 const router = express.Router();
 const Chat = require('../models/Chat');
-const PDF = require('../models/PDF');
-const { authMiddleware } = require('./auth');
-const { get_conversational_chain, get_pdf_text, get_text_chunks, get_vector_store, generate_chat_title } = require('../utils');
+const auth = require('../middleware/auth'); // Import the auth middleware
 
-router.post('/new', authMiddleware, async (req, res) => {
+// Create a new chat
+router.post('/new', auth, async (req, res) => {
   try {
-    const chat = new Chat({ userId: req.user.id });
-    await chat.save();
-    res.json(chat);
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-router.get('/history', authMiddleware, async (req, res) => {
-  try {
-    const chats = await Chat.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json(chats);
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-router.post('/message', authMiddleware, async (req, res) => {
-  const { chatId, message } = req.body;
-  try {
-    const chat = await Chat.findById(chatId);
-    if (!chat || chat.userId.toString() !== req.user.id) return res.status(403).json({ msg: 'Unauthorized' });
-
-    chat.messages.push({ role: 'user', content: message });
-
-    if (chat.messages.length === 1) {
-      const title = await generate_chat_title(message);
-      chat.title = title;
-    }
-
-    await chat.save();
-
-    const pdfs = await PDF.find({ chatId: chat._id });
-    const pdfBuffers = pdfs.map(pdf => pdf.data);
-    const rawText = await get_pdf_text(pdfBuffers);
-    const textChunks = get_text_chunks(rawText);
-    const vectorStore = get_vector_store(textChunks);
-    const chain = get_conversational_chain();
-
-    const response = await chain({
-      input_documents: vectorStore,
-      question: message,
+    const chat = new Chat({
+      user: req.user.id,
+      messages: [],
     });
-
-    chat.messages.push({ role: 'assistant', content: response.output_text });
     await chat.save();
-
-    res.json(chat);
+    res.status(201).json(chat);
   } catch (err) {
-    console.error(err);
+    console.error('Error creating chat:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// New endpoint to delete a chat
-router.delete('/delete/:chatId', authMiddleware, async (req, res) => {
-  const { chatId } = req.params;
+// Get chat history
+router.get('/history', auth, async (req, res) => {
   try {
+    const chats = await Chat.find({ user: req.user.id }).sort({ createdAt: -1 });
+    res.status(200).json(chats);
+  } catch (err) {
+    console.error('Error fetching chat history:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Get messages for a specific chat
+router.get('/:chatId/messages', auth, async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) {
+      return res.status(404).json({ msg: 'Chat not found' });
+    }
+    if (chat.user.toString() !== req.user.id) {
+      return res.status(403).json({ msg: 'Unauthorized' });
+    }
+    res.status(200).json(chat.messages);
+  } catch (err) {
+    console.error('Error fetching messages:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Send a message
+router.post('/message', auth, async (req, res) => {
+  try {
+    const { chatId, message } = req.body;
     const chat = await Chat.findById(chatId);
-    if (!chat || chat.userId.toString() !== req.user.id) {
+    if (!chat) {
+      return res.status(404).json({ msg: 'Chat not found' });
+    }
+    if (chat.user.toString() !== req.user.id) {
       return res.status(403).json({ msg: 'Unauthorized' });
     }
 
-    // Delete the chat
-    await Chat.findByIdAndDelete(chatId);
+    // Add user message
+    chat.messages.push({
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    });
 
-    // Delete associated PDFs
-    await PDF.deleteMany({ chatId });
+    // Simulate AI response (replace with actual AI integration)
+    const aiResponse = `AI response to: ${message}`; // Placeholder
+    chat.messages.push({
+      role: 'assistant',
+      content: aiResponse,
+      timestamp: new Date(),
+    });
 
-    res.json({ msg: 'Chat deleted successfully' });
+    await chat.save();
+    res.status(200).json(chat);
   } catch (err) {
-    console.error('Error deleting chat:', err);
+    console.error('Error sending message:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
+// Clear messages for a chat
 router.delete('/:chatId/messages', auth, async (req, res) => {
   try {
     const chat = await Chat.findById(req.params.chatId);
@@ -99,6 +97,25 @@ router.delete('/:chatId/messages', auth, async (req, res) => {
     res.status(200).json({ msg: 'Messages cleared successfully' });
   } catch (err) {
     console.error('Error clearing messages:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Delete a chat
+router.delete('/:chatId', auth, async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) {
+      return res.status(404).json({ msg: 'Chat not found' });
+    }
+    if (chat.user.toString() !== req.user.id) {
+      return res.status(403).json({ msg: 'Unauthorized' });
+    }
+
+    await chat.deleteOne();
+    res.status(200).json({ msg: 'Chat deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting chat:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

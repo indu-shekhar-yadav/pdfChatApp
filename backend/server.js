@@ -6,15 +6,24 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Configure CORS to allow requests from your Netlify domain
+// Configure CORS
+const allowedOrigins = [
+  'https://pdfchatapp.netlify.app',
+  'http://localhost:3000', // For local development
+];
 app.use(cors({
-  origin: 'https://pdfchatapp.netlify.app',
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
 }));
 
 // Increase the limit for JSON payloads to 10MB (adjust as needed)
 app.use(express.json({ limit: '10mb' }));
-// Optionally, if you use urlencoded data, increase that limit too
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Health check endpoint
@@ -27,6 +36,7 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
+// Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/pdf', require('./routes/pdf'));
